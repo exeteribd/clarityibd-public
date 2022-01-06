@@ -24,6 +24,7 @@ library(survival)
 library(survminer)
 library(lme4)
 library(lmerTest)
+library(svglite)
 knitr::opts_chunk$set(
   echo = FALSE,
   message = FALSE,
