@@ -1,6 +1,9 @@
 # Custom functions required for CLARITY figures
 
-library(tidyverse)
+library(purrr)
+library(ggplot2)
+library(dplyr)
+library(readr)
 library(ggbeeswarm)
 geo_mean <- function(x, na.rm = FALSE) {
   exp(mean(log(x), na.rm = na.rm))

@@ -10,7 +10,13 @@ params:
 
 ```{r setup, include=FALSE}
 # Load required packages
-library(tidyverse)
+library(purrr)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(forcats)
+library(tidyr)
+library(stringr)
 library(ggbeeswarm)
 library(forestmodel)
 library(cowplot)
@@ -425,4 +431,10 @@ roc_analysis_anti_n %>%
   ylab("Sensitivity")
 
 export_pdf("supp figure 7")
+```
+
+## Session info
+
+```{r}
+sessionInfo()
 ```
