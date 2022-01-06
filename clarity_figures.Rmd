@@ -1,0 +1,428 @@
+---
+title: "CLARITY IBD second dose paper figures"
+author: "Nick Kennedy"
+date: "06/01/2022"
+output: html_document
+params:
+  rds_version: "2021-09-22"
+  export_pdf_location: "figures"
+---
+
+```{r setup, include=FALSE}
+# Load required packages
+library(tidyverse)
+library(ggbeeswarm)
+library(forestmodel)
+library(cowplot)
+library(survival)
+library(survminer)
+library(lme4)
+library(lmerTest)
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  dev = if (knitr::is_html_output()) "svglite" else "cairo_pdf",
+  fig.width = 12,
+  fig.height = 7
+)
+options(dplyr.summarise.inform = FALSE)
+data_folder <- file.path("data", params$rds_version)
+```
+
+```{r custom functions}
+source("clarity_functions.R")
+# Export PDF using cairo_pdf to the folder specififed in the YAML parameters
+export_pdf <- function(name, width = 12, height = 7, ...) {
+  if (!is.null(params$export_pdf_location)) {
+    ggsave(file.path(params$export_pdf_location, paste0(name, ".pdf")), device = cairo_pdf, width = width, height = height, ...)
+  }
+}
+```
+
+```{r Load data}
+# clarity_data
+# CSV file with one row per serology result and these columns:
+# id:                         randomised ID
+# weeks_since_first_dose:     weeks since first does of SARS-CoV-2 vaccine
+# weeks_since_second_dose:    weeks since second dose of SARS-CoV-2 vaccine
+# biologic:                   biologic received by the patient
+# biologic_combo:             biologic plus/minus immunomodulator received by the
+#                             patient
+# vaccine:                    vaccine received for doses 1/2
+# prior_infection:            whether evidence of prior infection at the time of
+#                             serum sample based on PCR and anti-N
+# anti_s:                     anti-S RBD concentration U/mL
+# infection_post_second_dose: whether the patient had evidence of infection
+#                             since their second vaccine dose based on PCR
+clarity_data <- read_csv(file.path(data_folder, "clarity_data.csv"), show_col_types = FALSE) %>% 
+  mutate(common_vaccine = vaccine %in% c("BNT162b2", "ChAdOx1 nCoV-19"))
+
+# linear_model_outputs and cph_outputs
+# CSV files with pre-prepared data for the forest model plots
+# These are derived from a linear model of log(anti_s) and a Cox proportional
+# hazards model based on time to antibody concentration below 15 u/mL. They are
+# outputs from a call to forestmodel::forest_model(mdl, return_data = TRUE, ...)
+linear_model_outputs <- read_csv(file.path(data_folder, "linear_model_outputs.csv"), show_col_types = FALSE) %>% 
+  mutate(vaccine = fct_relevel(vaccine, c("BNT162b2", "ChAdOx1 nCoV-19", "All")))
+
+cph_outputs <- read_csv(file.path(data_folder, "cph_outputs.csv"), show_col_types = FALSE)
+
+# (1) pre_vacc_survival_data and (2) post_vacc_survival_data
+# CSV files with the time to PCR-positive infection or censoring
+# (1) following recruitment to study (with censoring at first vaccine dose) and
+# (2) following second vaccine dose (with censoring at time of last PCR data)
+pre_vacc_survival_data <- read_csv(file.path(data_folder, "pre_vacc_surv_data.csv"), show_col_types = FALSE)
+
+post_vacc_survival_data <- read_csv(file.path(data_folder, "post_vacc_surv_data.csv"), show_col_types = FALSE)
+
+# roc_analysis_anti_n
+# CSV file with thresholds, sensitivities and specificities looking at
+# associations between positive PCR and anti-N (using data from the CLARITY
+# study)
+roc_analysis_anti_n <- read_csv(file.path(data_folder, "roc_analysis_anti_n.csv"), show_col_types = FALSE)
+
+# Filtered version of clarity_data that includes only data between 3 and 10
+# weeks following first dose of vaccine, that is pre-second dose and is from
+# participants who received the Pfizer or AstraZeneca vaccines
+post_first_dose <- clarity_data %>% 
+  filter(
+    between(weeks_since_first_dose, 3, 10),
+    is.na(weeks_since_second_dose) | weeks_since_second_dose < 0,
+    common_vaccine
+  ) %>% 
+  group_by(id) %>% 
+  slice_min(weeks_since_first_dose) %>% 
+  ungroup()
+
+# Filtered version of clarity_data that includes only data between 2 and 10
+# weeks following second  dose of vaccine, where there was at least two weeks
+# between doses and is from participants who received the Pfizer or AstraZeneca
+# vaccines
+post_second_dose <- clarity_data %>% 
+  filter(
+    between(weeks_since_second_dose, 2, 10),
+    weeks_since_first_dose - weeks_since_second_dose >= 2,
+    common_vaccine
+  ) %>% 
+  group_by(id) %>% 
+  slice_min(weeks_since_second_dose) %>% 
+  ungroup()
+
+# Filtered version of clarity_data at least two weeks post second dose and
+# excluding anyone with evidence of PCR-positive infection post second dose
+# or data where there is a rise in log2(anti_s) by 0.5 or more.
+post_second_no_rise_no_inf_post <- clarity_data %>% 
+  filter(
+    weeks_since_second_dose >= 2,
+    !infection_post_second_dose,
+    common_vaccine
+  ) %>% 
+  mutate(
+    across(vaccine, fct_rev),
+    prior_infection = factor(prior_infection, levels = c(FALSE, TRUE), labels = c("No prior infection", "Prior infection"))
+  ) %>% 
+  group_by(id) %>% 
+  arrange(id, weeks_since_first_dose) %>% 
+  filter(cumsum(c(FALSE, diff(log2(anti_s)) >= 0.5)) == 0) %>% 
+  ungroup()
+```
+
+## Figure 1
+
+```{r figure 1}
+fig1_data <- bind_rows(
+  post_first_dose %>% 
+    transmute(vaccine, prior_infection, anti_s, biologic, doses = 1),
+  post_second_dose %>% 
+    transmute(vaccine, prior_infection, anti_s, biologic, doses = 2)
+  ) %>% 
+  mutate(group = paste0(c("One dose", "Two doses")[doses], " ", if_else(prior_infection, "P", "No p"), "rior infection")) %>% 
+  group_by(group, vaccine) %>% 
+  filter(n() >= 5) %>% 
+  ungroup()
+
+fig1_data %>% 
+  gm_fig(x = group, y = anti_s, colour = biologic, facet_cols = quos(vaccine, biologic), cex = 0.2) +
+  scale_x_discrete("", labels = scales::label_wrap(10)) +
+  scale_y_log10("Anti-S RBD S antibody concentration (U/mL)") +
+  label_stat_count_n(mapping = aes(y = max(anti_s * 1.7, na.rm = TRUE), label = ..count..)) +
+  scale_fill_brewer(palette = "Dark2", guide = "none") +
+  scale_colour_brewer(palette = "Dark2", guide = "none")
+
+export_pdf("figure 1")
+```
+
+## Figure 2
+
+```{r figure 2}
+f_panels <- list(
+  forest_panel(width = 0.03),
+  forest_panel(width = 0.18, display = str_replace_all(variable, ">=", "="), heading = "Variable", fontface = "bold"),
+  forest_panel(width = 0.1, display = sprintf("%d/%d", n, total), hjust = 1, heading = "N"),
+  forest_panel(width = 0.03, item = "vline", hjust = 0.5),
+  forest_panel(width = 0.2, item = "forest", hjust = 0.5, heading = "", linetype = "dashed", line_x = 0),
+  forest_panel(width = 0.03, item = "vline", hjust = 0.5),
+  forest_panel(
+    width = 0.15,
+    display = if_else(
+      reference,
+      "Reference",
+      sprintf("%0.2f (%0.2f, %0.2f)", trans(estimate), trans(conf.low), trans(conf.high))
+    ), 
+    display_na = NA,
+    heading = "Fold change (95% CI)"
+  ),
+  forest_panel(
+    width = 0.05,
+    display = if_else(reference, "", pretty_p(p.value, p_digits = 4, sig_fig = TRUE)),
+    display_na = NA,
+    hjust = 0,
+    heading = "p"
+  ),
+  forest_panel(width = 0.03)
+)
+
+f_plots <- linear_model_outputs %>% 
+  split(., .$vaccine) %>% 
+  imap(
+    ~panel_forest_plot(
+      .x,
+      panels = f_panels,
+      trans = exp,
+      recalculate_width = FALSE,
+      limits = log(c(0.1, 4))
+    ) +
+      theme(plot.margin = unit(c(20, 5.5, 5.5, 5.5), "point"))
+  )
+
+plot_grid(plotlist = f_plots, nrow = 3, labels = paste(letters[1:3], names(f_plots)), hjust = 0, label_x = 0.025)
+
+export_pdf("figure 2")
+```
+
+## Figure 5
+
+```{r figure 5}
+clarity_data %>% 
+  filter(common_vaccine, weeks_since_first_dose >= -10) %>% 
+  select(weeks_since_second_dose, anti_s, vaccine, biologic, prior_infection) %>% 
+  crossing(tibble(week = seq(-21, 32, 0.5))) %>% 
+  filter(abs(week - weeks_since_second_dose) <= 1) %>%
+  group_by(vaccine, biologic, week, prior_infection) %>% 
+  summarise(n = n(), geo_mean = geo_mean(anti_s), geo_sd = geo_sd(anti_s)) %>% 
+  filter(n >= 10) %>% 
+  mutate(
+    lower_ci = exp(log(geo_mean) - qnorm(0.975) * log(geo_sd) / sqrt(n)),
+    upper_ci = exp(log(geo_mean) + qnorm(0.975) * log(geo_sd) / sqrt(n))
+  ) %>% 
+  ggplot(aes(week, fill = biologic)) +
+  geom_vline(xintercept = 0, colour = "#404040") +
+  geom_hline(yintercept = 15, colour = "#4040D0") +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.5) +
+  geom_line(aes(y = geo_mean)) +
+  geom_point(aes(y = geo_mean)) +
+  scale_y_log10("Anti-S RBD S antibody concentration (U/mL)") +
+  scale_x_continuous("Weeks since vaccine") +
+  facet_grid(cols = quos(vaccine), rows = quos(prior_infection)) +
+  scale_fill_brewer("Biologic", palette = "Dark2") +
+  theme_cowplot() +
+  background_grid()
+
+export_pdf("figure 5")
+```
+
+## Figure 6
+
+```{r figure 6}
+vacc_plots <- tibble(
+  data = list(pre_vacc_survival_data, post_vacc_survival_data),
+  xlim = list(NULL, c(0, 30)),
+  xlab = c("Weeks since recruitment to CLARITY IBD", "Weeks since second dose of vaccine")
+) %>% 
+  pmap(
+    function(data, xlim, xlab) 
+      survfit(Surv(surv_time, surv_event) ~ biologic, data) %>% 
+        ggsurvplot(
+          pval = TRUE,
+          conf.int = TRUE,
+          risk.table = TRUE,
+          palette = "Dark2",
+          fun = function(y) (1 - y) * 100,
+          break.x.by = 10,
+          legend.labs = c("Infliximab", "Vedolizumab"),
+          ylab = "Cumulative proportion with PCR-positive infection",
+          xlim = xlim,
+          ylim = c(0, 25),
+          pval.coord = c(0, 10),
+          xlab = xlab,
+          data = data
+        )
+  )
+
+plot_grid(vacc_plots[[1]]$plot, vacc_plots[[2]]$plot, vacc_plots[[1]]$table, vacc_plots[[2]]$table, ncol = 2, rel_heights = c(5, 2), align = "hv", axis = "tblr", labels = c("a: Pre-vaccine", "b: Post two doses"))
+
+export_pdf("figure 6")
+```
+
+## Supplementary figure 1
+
+```{r supp figure 1}
+clarity_data %>%
+  filter(
+    between(weeks_since_second_dose, 2, 10),
+    !prior_infection,
+    weeks_since_first_dose - weeks_since_second_dose >= 2,
+    common_vaccine
+  ) %>% 
+  group_by(vaccine, biologic_combo = str_replace(biologic_combo, "immunomodulator", "IMM")) %>% 
+  summarise(
+    n = n(),
+    n_seropos = sum(anti_s >= 15),
+    prop_seropos = mean(anti_s >= 15),
+    prop_seropos_test = map2(n_seropos, n, prop.test),
+    prop_seropos_lower = map_dbl(prop_seropos_test, ~.x$conf.int[1]),
+    prop_seropos_upper = map_dbl(prop_seropos_test, ~.x$conf.int[2])
+  ) %>% 
+  ggplot(aes(
+    x = biologic_combo, y = prop_seropos, fill = biologic_combo
+  )) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop_seropos_lower, ymax = prop_seropos_upper), width = 0.2, alpha = 0.5) +
+  scale_fill_manual(values = c("#1B9E77", "#D95F02") %>% c(., lighten(.)) %>% {.[c(3, 1, 4, 2)]}, guide = "none") +
+  scale_x_discrete("", labels = scales::label_wrap(15)) +
+  scale_y_continuous("Percent seropositive", labels = scales::label_percent(accuracy = 1), limits = c(0, 1)) +
+  facet_grid(cols = quos(vaccine)) +
+  geom_text(aes(y = 0.05, label = sprintf("%0.1f%%\n%d/%d", prop_seropos * 100, n_seropos, n)), vjust = 0) +
+  theme_cowplot()
+
+export_pdf("supp figure 1")
+```
+
+## Supplementary figure 2
+
+```{r supp figure 2}
+lme_exp_by_biologic_vacc <- post_second_no_rise_no_inf_post %>%
+  mutate(weeks_since_2w_post_second_dose = weeks_since_second_dose - 2) %>% 
+  group_by(biologic, prior_infection, vaccine) %>% 
+  summarise(
+    n = n(),
+    lme_exp = list(lmer(log2(anti_s) ~ weeks_since_2w_post_second_dose + (1 | id) + (0 + weeks_since_2w_post_second_dose | id), control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))))
+  ) %>% 
+  mutate(
+    int_exp = map_dbl(lme_exp, ~fixef(.x)[1]),
+    slope_exp = map_dbl(lme_exp, ~fixef(.x)[2]),
+    half_life_exp = -1 / slope_exp,
+    conf_int_exp = map(lme_exp, ~confint(.x, "weeks_since_2w_post_second_dose")),
+    half_life_lci_exp = -1 / map_dbl(conf_int_exp, ~.x[1]),
+    half_life_uci_exp = -1 / map_dbl(conf_int_exp, ~.x[2]),
+  )
+
+post_second_no_rise_no_inf_post %>%
+  ggplot() +
+  geom_line(aes(weeks_since_second_dose, log2(anti_s), group = id, colour = biologic), alpha = 0.5) +
+  geom_abline(aes(intercept = int_exp, slope = slope_exp), lme_exp_by_biologic_vacc, colour = "dark blue") +
+  facet_grid(cols = quos(biologic, vaccine), rows = quos(prior_infection)) +
+  scale_y_continuous("Anti-S RBD antibody concentration (U/mL)", breaks = log2(10 ^ (1:4)), labels = 10 ^ (1:4)) +
+  geom_text(aes(x = 5, y = log2(1e5), hjust = 0, label = sprintf("\U003BB = %0.1f (%0.1f - %0.1f) days", half_life_exp * 7, half_life_lci_exp * 7, half_life_uci_exp * 7)), lme_exp_by_biologic_vacc) +
+  scale_colour_brewer("Biologic", palette = "Dark2") +
+  xlab("Weeks since second dose of vaccine")
+
+export_pdf("supp figure 2")
+```
+
+## Supplementary figure 3
+
+```{r supp figure 3}
+clarity_data %>% 
+    crossing(tibble(week = seq(-21, 32, 0.5))) %>% 
+    filter(abs(week - weeks_since_second_dose) <= 1, !is.na(anti_s), common_vaccine) %>%
+    group_by(vaccine, biologic, week, prior_infection) %>% 
+    summarise(n = n(), geo_mean = geo_mean(anti_s), geo_sd = geo_sd(anti_s)) %>% 
+    filter(n >= 10) %>% 
+    ggplot(aes(week, colour = biologic)) +
+    geom_line(aes(y = n)) +
+    geom_point(aes(y = n)) +
+    scale_x_continuous("Weeks since second dose of vaccine") +
+    ylab("Number of participants included at each time point") +
+    facet_grid(cols = quos(vaccine), rows = quos(prior_infection)) +
+    scale_colour_brewer("Biologic", palette = "Dark2") +
+    theme_cowplot() +
+    background_grid()
+
+export_pdf("supp figure 3")
+```
+
+## Supplementary figure 5
+
+```{r supp figure 5, fig.width=12, fig.height=9}
+post_second_lost_15_data <- clarity_data %>%
+  filter(weeks_since_second_dose >= 0) %>% 
+  group_by(id, biologic) %>% 
+  filter(anti_s[1] >= 15) %>% 
+  summarise(
+    prior_infection = prior_infection[1],
+    surv_below_15 = any(anti_s < 15),
+    surv_time = if_else(
+      surv_below_15,
+      weeks_since_second_dose[which(anti_s < 15)[1]],
+      max(weeks_since_second_dose)
+    )
+  ) %>% 
+  ungroup()
+
+surv_below_15_plot <- ggsurvplot(
+  survfit(Surv(surv_time, surv_below_15) ~ biologic, post_second_lost_15_data),
+  pval = TRUE,
+  palette = "Dark2",
+  xlab = "Weeks from baseline",
+  ylab = "Percentage of participants without a fall in anti-S RBD below 15 U/mL",
+  fun = "pct",
+  conf.int = TRUE,
+  risk.table = TRUE,
+  legend.labs = c("Infliximab", "Vedolizumab"),
+  xlim = c(0, 33),
+  break.x.by = 8
+)
+
+surv_below_15_plot
+
+export_pdf("supp figure 5", survminer:::.build_ggsurvplot(surv_below_15_plot), width = 12, height = 9)
+```
+
+## Supplementary figure 6
+
+```{r}
+f_panels_cph <- f_panels
+f_panels_cph[[5]]$heading <- "Hazard ratio"
+f_panels_cph[[7]]$heading <- "HR (95% CI)"
+
+panel_forest_plot(
+  cph_outputs,
+  panels = f_panels_cph,
+  trans = exp,
+  recalculate_width = FALSE
+)
+
+export_pdf("supp figure 6")
+```
+
+## Supplementary figure 7
+
+```{r}
+opt_thresh <- roc_analysis_anti_n %>% 
+  slice_max(sensitivity + specificity, n = 1, with_ties = FALSE)
+
+roc_analysis_anti_n %>% 
+  ggplot(aes(specificity, sensitivity)) +
+  geom_line() +
+  geom_abline(intercept = 1, slope = 1, colour = "grey") +
+  geom_point(data = opt_thresh) +
+  geom_text(aes(label = sprintf("%0.3f (%0.3f, %0.3f)", threshold, specificity, sensitivity)), data = opt_thresh, hjust = -0.1) +
+  theme_cowplot() +
+  scale_x_reverse("Specificity") +
+  coord_equal() +
+  ylab("Sensitivity")
+
+export_pdf("supp figure 7")
+```

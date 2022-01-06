@@ -1,0 +1,6 @@
+term_label,variable,class,level,level_no,n,total,term,estimate,std.error,statistic,p.value,conf.low,conf.high,reference,label
+`Infliximab (vs vedolizumab)`TRUE,Infliximab (vs vedolizumab),logical,NA,NA,2979,4433,`Infliximab (vs vedolizumab)`TRUE,3.0757728679847394,0.45693707337774103,6.731283249240881,1.681732161467653e-11,2.180192660963231,3.9713530750062476,FALSE,Infliximab (vs vedolizumab)
+ImmunomodulatorTRUE,Immunomodulator,logical,NA,NA,2012,4433,ImmunomodulatorTRUE,0.060558960937869596,0.13364900010681963,0.45311944638169793,0.6504627331451233,-0.20138826584128666,0.3225061877170259,FALSE,Immunomodulator
+`Crohn's disease (vs UC or IBDU)`TRUE,Crohn's disease (vs UC or IBDU),logical,NA,NA,2512,4433,`Crohn's disease (vs UC or IBDU)`TRUE,0.2128474555566858,0.14392984282715326,1.4788278189971789,0.1391863387537077,-0.06924985268504516,0.4949447637984168,FALSE,Crohn's disease (vs UC or IBDU)
+`Non-white ethnicity`TRUE,Non-white ethnicity,logical,NA,NA,452,4433,`Non-white ethnicity`TRUE,-0.9195446073844492,0.2890396769803093,-3.1813784771392917,0.0014657600237011877,-1.4860519643689463,-0.35303725039995215,FALSE,Non-white ethnicity
+`Current smoker`TRUE,Current smoker,logical,NA,NA,421,4433,`Current smoker`TRUE,0.6204455571092756,0.17763316778240712,3.492847449915966,4.7789943453379355e-4,0.2722909457959971,0.9686001684225541,FALSE,Current smoker
