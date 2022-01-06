@@ -1372,10 +1372,10 @@
     },
     "tidyr": {
       "Package": "tidyr",
-      "Version": "1.1.3",
+      "Version": "1.1.4",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "450d7dfaedde58e28586b854eeece4fa",
+      "Hash": "c8fbdbd9fcac223d6c6fe8e406f368e1",
       "Requirements": [
         "cpp11",
         "dplyr",
