@@ -28,8 +28,6 @@ jobs:
 
       - uses: r-lib/actions/setup-renv@v1
 
-#           RMD_PATH=($(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '[.]Rmd$'))
-      
       - name: Render Rmarkdown files
         run: |
           RMD_PATH=("clarity_figures.Rmd")
@@ -39,5 +37,5 @@ jobs:
         run: |
           git config --local user.name "$GITHUB_ACTOR"
           git config --local user.email "$GITHUB_ACTOR@users.noreply.github.com"
-          git commit ${RMD_PATH[*]/.Rmd/.md} -m 'Re-build Rmarkdown files' || echo "No changes to commit"
+          git commit clarity_figures.html figures/* -m 'Re-build Rmarkdown files' || echo "No changes to commit"
           git push origin || echo "No changes to commit"
