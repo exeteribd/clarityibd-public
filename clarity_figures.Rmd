@@ -29,7 +29,7 @@ knitr::opts_chunk$set(
   echo = FALSE,
   message = FALSE,
   warning = FALSE,
-  dev = if (knitr::is_html_output()) "svglite" else "cairo_pdf",
+  dev = if (knitr::is_html_output()) "png" else "cairo_pdf",
   fig.width = 12,
   fig.height = 7
 )
