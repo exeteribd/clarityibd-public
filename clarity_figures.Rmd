@@ -275,40 +275,6 @@ export_pdf("figure 6")
 ## Supplementary figure 1
 
 ```{r supp figure 1}
-clarity_data %>%
-  filter(
-    between(weeks_since_second_dose, 2, 10),
-    !prior_infection,
-    weeks_since_first_dose - weeks_since_second_dose >= 2,
-    common_vaccine
-  ) %>% 
-  group_by(vaccine, biologic_combo = str_replace(biologic_combo, "immunomodulator", "IMM")) %>% 
-  summarise(
-    n = n(),
-    n_seropos = sum(anti_s >= 15),
-    prop_seropos = mean(anti_s >= 15),
-    prop_seropos_test = map2(n_seropos, n, prop.test),
-    prop_seropos_lower = map_dbl(prop_seropos_test, ~.x$conf.int[1]),
-    prop_seropos_upper = map_dbl(prop_seropos_test, ~.x$conf.int[2])
-  ) %>% 
-  ggplot(aes(
-    x = biologic_combo, y = prop_seropos, fill = biologic_combo
-  )) +
-  geom_col() +
-  geom_errorbar(aes(ymin = prop_seropos_lower, ymax = prop_seropos_upper), width = 0.2, alpha = 0.5) +
-  scale_fill_manual(values = c("#1B9E77", "#D95F02") %>% c(., lighten(.)) %>% {.[c(3, 1, 4, 2)]}, guide = "none") +
-  scale_x_discrete("", labels = scales::label_wrap(15)) +
-  scale_y_continuous("Percent seropositive", labels = scales::label_percent(accuracy = 1), limits = c(0, 1)) +
-  facet_grid(cols = quos(vaccine)) +
-  geom_text(aes(y = 0.05, label = sprintf("%0.1f%%\n%d/%d", prop_seropos * 100, n_seropos, n)), vjust = 0) +
-  theme_cowplot()
-
-export_pdf("supp figure 1")
-```
-
-## Supplementary figure 2
-
-```{r supp figure 2}
 lme_exp_by_biologic_vacc <- post_second_no_rise_no_inf_post %>%
   mutate(weeks_since_2w_post_second_dose = weeks_since_second_dose - 2) %>% 
   group_by(biologic, prior_infection, vaccine) %>% 
@@ -335,12 +301,12 @@ post_second_no_rise_no_inf_post %>%
   scale_colour_brewer("Biologic", palette = "Dark2") +
   xlab("Weeks since second dose of vaccine")
 
-export_pdf("supp figure 2")
+export_pdf("supp figure 1")
 ```
 
-## Supplementary figure 3
+## Supplementary figure 2
 
-```{r supp figure 3}
+```{r supp figure 2}
 clarity_data %>% 
     crossing(tibble(week = seq(-21, 32, 0.5))) %>% 
     filter(abs(week - weeks_since_second_dose) <= 1, !is.na(anti_s), common_vaccine) %>%
@@ -357,12 +323,12 @@ clarity_data %>%
     theme_cowplot() +
     background_grid()
 
-export_pdf("supp figure 3")
+export_pdf("supp figure 2")
 ```
 
-## Supplementary figure 5
+## Supplementary figure 4
 
-```{r supp figure 5, fig.width=12, fig.height=9}
+```{r supp figure 4, fig.width=12, fig.height=9}
 post_second_lost_15_data <- clarity_data %>%
   filter(weeks_since_second_dose >= 0) %>% 
   group_by(id, biologic) %>% 
@@ -394,10 +360,10 @@ surv_below_15_plot <- ggsurvplot(
 
 surv_below_15_plot
 
-export_pdf("supp figure 5", survminer:::.build_ggsurvplot(surv_below_15_plot), width = 12, height = 9)
+export_pdf("supp figure 4", survminer:::.build_ggsurvplot(surv_below_15_plot), width = 12, height = 9)
 ```
 
-## Supplementary figure 6
+## Supplementary figure 5
 
 ```{r}
 f_panels_cph <- f_panels
@@ -411,10 +377,10 @@ panel_forest_plot(
   recalculate_width = FALSE
 )
 
-export_pdf("supp figure 6")
+export_pdf("supp figure 5")
 ```
 
-## Supplementary figure 7
+## Supplementary figure 6
 
 ```{r}
 opt_thresh <- roc_analysis_anti_n %>% 
@@ -431,7 +397,7 @@ roc_analysis_anti_n %>%
   coord_equal() +
   ylab("Sensitivity")
 
-export_pdf("supp figure 7")
+export_pdf("supp figure 6")
 ```
 
 ## Session info
