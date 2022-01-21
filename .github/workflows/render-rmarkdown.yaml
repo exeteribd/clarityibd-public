@@ -31,11 +31,11 @@ jobs:
       - name: Render Rmarkdown files
         run: |
           RMD_PATH=("clarity_figures.Rmd")
-          Rscript -e 'for (f in commandArgs(TRUE)) if (file.exists(f)) rmarkdown::render(f)' ${RMD_PATH[*]}
+          Rscript -e 'for (f in commandArgs(TRUE)) if (file.exists(f)) rmarkdown::render(f, c("html_document", "github_document"))' ${RMD_PATH[*]}
 
       - name: Commit results
         run: |
           git config --local user.name "$GITHUB_ACTOR"
           git config --local user.email "$GITHUB_ACTOR@users.noreply.github.com"
-          git commit clarity_figures.html figures/* -m 'Re-build Rmarkdown files' || echo "No changes to commit"
+          git commit clarity_figures.html clarity_figures.md figures/* clarity_figures_files/figure-gfm/* -m 'Re-build Rmarkdown files' || echo "No changes to commit"
           git push origin || echo "No changes to commit"

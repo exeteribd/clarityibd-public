@@ -2,7 +2,7 @@
 title: "CLARITY IBD second dose paper figures"
 author: "Nick Kennedy"
 date: "06/01/2022"
-output: html_document
+output: github_document
 params:
   rds_version: "2021-09-22"
   export_pdf_location: "figures"
@@ -24,7 +24,6 @@ library(survival)
 library(survminer)
 library(lme4)
 library(lmerTest)
-library(svglite)
 knitr::opts_chunk$set(
   echo = FALSE,
   message = FALSE,
@@ -365,7 +364,7 @@ export_pdf("supp figure 4", survminer:::.build_ggsurvplot(surv_below_15_plot), w
 
 ## Supplementary figure 5
 
-```{r}
+```{r supp figure 5}
 f_panels_cph <- f_panels
 f_panels_cph[[5]]$heading <- "Hazard ratio"
 f_panels_cph[[7]]$heading <- "HR (95% CI)"
@@ -382,7 +381,7 @@ export_pdf("supp figure 5")
 
 ## Supplementary figure 6
 
-```{r}
+```{r supp figure 6}
 opt_thresh <- roc_analysis_anti_n %>% 
   slice_max(sensitivity + specificity, n = 1, with_ties = FALSE)
 

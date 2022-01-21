@@ -1,6 +1,6 @@
 {
   "R": {
-    "Version": "4.1.1",
+    "Version": "4.1.2",
     "Repositories": [
       {
         "Name": "CRAN",
@@ -1351,27 +1351,6 @@
         "survival",
         "tibble",
         "tidyr"
-      ]
-    },
-    "svglite": {
-      "Package": "svglite",
-      "Version": "2.0.0",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "8fb6188960bf0f90996ce52f9c2106ac",
-      "Requirements": [
-        "cpp11",
-        "systemfonts"
-      ]
-    },
-    "systemfonts": {
-      "Package": "systemfonts",
-      "Version": "1.0.2",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "f2e17ba09737e2e7e2ec40fc1f9b6e08",
-      "Requirements": [
-        "cpp11"
       ]
     },
     "tibble": {
